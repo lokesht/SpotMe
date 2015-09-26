@@ -3,20 +3,27 @@ package location.track.my.spotme;
 import android.location.Location;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.location.LocationListener;
+import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationServices;
 
 public class MainActivity extends AppCompatActivity implements
-        GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener {
+        GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener, LocationListener {
+
+    private final String TAG = getClass().getName();
 
     //Google Api Client for Location
-    GoogleApiClient mGoogleApiClient;
-    Location mLastLocation;
+    private GoogleApiClient mGoogleApiClient;
+   // private Location mLastLocation;
+    private LocationRequest mLocationRequest;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -36,22 +43,51 @@ public class MainActivity extends AppCompatActivity implements
 
     @Override
     public void onConnected(Bundle bundle) {
-        mLastLocation = LocationServices.FusedLocationApi.getLastLocation(mGoogleApiClient);
+        // TO get Last known location
+        //mLastLocation = LocationServices.FusedLocationApi.getLastLocation(mGoogleApiClient);
 
-        if (mLastLocation != null) {
-            Toast.makeText(MainActivity.this, mLastLocation.getLatitude()+" "+String.valueOf(mLastLocation.getLongitude()), Toast.LENGTH_SHORT).show();
-        }
+        mLocationRequest = LocationRequest.create();
+        mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
+        mLocationRequest.setInterval(1000);
 
+        LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient, mLocationRequest, this);
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        //Connect Client
+        reConnectLocationService();
+    }
+
+    @Override
+    protected void onStop() {
+        //Disconnect Client
+        disConnectLocationService();
+
+        super.onStop();
     }
 
     @Override
     public void onConnectionSuspended(int i) {
-
+        Log.i(TAG, "onConnectionSuspended ->"+ i);
+        reConnectLocationService();
     }
 
     @Override
     public void onConnectionFailed(ConnectionResult connectionResult) {
+        Log.i(TAG, "onConnectionFailed ->"+ connectionResult.toString());
+        reConnectLocationService();
+    }
 
+    private void reConnectLocationService() {
+        if (mGoogleApiClient != null)
+            mGoogleApiClient.connect();
+    }
+
+    private void disConnectLocationService() {
+        if (mGoogleApiClient != null && mGoogleApiClient.isConnected())
+            mGoogleApiClient.disconnect();
     }
 
     @Override
@@ -76,4 +112,21 @@ public class MainActivity extends AppCompatActivity implements
         return super.onOptionsItemSelected(item);
     }
 
+    @Override
+    public void onLocationChanged(Location location) {
+
+        if (location != null) {
+            TextView textView = (TextView) findViewById(R.id.tv_lat_long);
+            String s = location.getLatitude() + " " + String.valueOf(location.getLongitude());
+            textView.setText(s);
+            Toast.makeText(MainActivity.this, s, Toast.LENGTH_SHORT).show();
+        }
+
+//        if (mLastLocation != null) {
+//            TextView textView = (TextView)findViewById(R.id.tv_lat_long);
+//            String s = mLastLocation.getLatitude()+" "+String.valueOf(mLastLocation.getLongitude());
+//            textView.setText(s);
+//            Toast.makeText(MainActivity.this, s, Toast.LENGTH_SHORT).show();
+//        }
+    }
 }
