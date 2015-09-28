@@ -1,132 +1,103 @@
 package location.track.my.spotme;
 
-import android.location.Location;
-import android.support.v7.app.AppCompatActivity;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.database.Cursor;
 import android.os.Bundle;
-import android.util.Log;
-import android.view.Menu;
-import android.view.MenuItem;
-import android.widget.TextView;
+import android.support.v7.app.AppCompatActivity;
+import android.widget.ListView;
 import android.widget.Toast;
 
-import com.google.android.gms.common.ConnectionResult;
-import com.google.android.gms.common.api.GoogleApiClient;
-import com.google.android.gms.location.LocationListener;
-import com.google.android.gms.location.LocationRequest;
-import com.google.android.gms.location.LocationServices;
+import java.util.ArrayList;
 
-public class MainActivity extends AppCompatActivity implements
-        GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener, LocationListener {
+import location.track.adapter.ListAdapter;
+import location.track.dbhelper.DBHelper;
+import location.track.dbhelper.LocationContract;
+import location.track.model.Item;
+import location.track.services.SpotRecognistionService;
+
+public class MainActivity extends AppCompatActivity {
 
     private final String TAG = getClass().getName();
+    private ActivityDetectionRecevier receiver;
 
-    //Google Api Client for Location
-    private GoogleApiClient mGoogleApiClient;
-   // private Location mLastLocation;
-    private LocationRequest mLocationRequest;
+    // For the SimpleCursorAdapter to match the UserDictionary columns to layout items.
+    private static final String[] COLUMNS_TO_BE_BOUND = new String[]{
+            LocationContract.LocationEntry.CORD_LAT,
+            LocationContract.LocationEntry.CORD_LONG
+    };
+
+    private static final int[] LAYOUT_ITEMS_TO_FILL = new int[]{
+            android.R.id.text1,
+            android.R.id.text2
+    };
+
+    private ListView latlong;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        buildGoogleApiClient();
+        initialize();
     }
 
-    protected synchronized void buildGoogleApiClient() {
-        mGoogleApiClient = new GoogleApiClient.Builder(this)
-                .addConnectionCallbacks(this)
-                .addOnConnectionFailedListener(this)
-                .addApi(LocationServices.API)
-                .build();
+    public void initialize() {
+        receiver = new ActivityDetectionRecevier();
+        Intent in = new Intent(this, SpotRecognistionService.class);
+        startService(in);
+
+        latlong = (ListView) findViewById(R.id.lv_latlong);
+        setupList();
     }
 
-    @Override
-    public void onConnected(Bundle bundle) {
-        // TO get Last known location
-        //mLastLocation = LocationServices.FusedLocationApi.getLastLocation(mGoogleApiClient);
+    public void setupList() {
+        // Get a Cursor containing all of the rows in the Words table.
+        Cursor cursor = new DBHelper(getApplicationContext()).getTableValue(LocationContract.LocationEntry.TABLE_NAME, null, null);
 
-        mLocationRequest = LocationRequest.create();
-        mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
-        mLocationRequest.setInterval(1000);
+        ArrayList<Item> lsItem = new ArrayList<Item>();
+        if (cursor != null && cursor.moveToFirst()) {
+            do {
+                String lat = cursor.getString(cursor.getColumnIndex(LocationContract.LocationEntry.CORD_LAT));
+                String longi = cursor.getString(cursor.getColumnIndex(LocationContract.LocationEntry.CORD_LONG));
+                String date = cursor.getString(cursor.getColumnIndex(LocationContract.LocationEntry.DATE));
 
-        LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient, mLocationRequest, this);
-    }
+                Item i = new Item(lat, longi, date);
+                lsItem.add(i);
+            } while (cursor.moveToNext());
 
-    @Override
-    protected void onStart() {
-        super.onStart();
-        //Connect Client
-        reConnectLocationService();
-    }
-
-    @Override
-    protected void onStop() {
-        //Disconnect Client
-        disConnectLocationService();
-
-        super.onStop();
-    }
-
-    @Override
-    public void onConnectionSuspended(int i) {
-        Log.i(TAG, "onConnectionSuspended ->"+ i);
-        reConnectLocationService();
-    }
-
-    @Override
-    public void onConnectionFailed(ConnectionResult connectionResult) {
-        Log.i(TAG, "onConnectionFailed ->"+ connectionResult.toString());
-        reConnectLocationService();
-    }
-
-    private void reConnectLocationService() {
-        if (mGoogleApiClient != null)
-            mGoogleApiClient.connect();
-    }
-
-    private void disConnectLocationService() {
-        if (mGoogleApiClient != null && mGoogleApiClient.isConnected())
-            mGoogleApiClient.disconnect();
-    }
-
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        // Inflate the menu; this adds items to the action bar if it is present.
-        getMenuInflater().inflate(R.menu.menu_main, menu);
-        return true;
-    }
-
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        // Handle action bar item clicks here. The action bar will
-        // automatically handle clicks on the Home/Up button, so long
-        // as you specify a parent activity in AndroidManifest.xml.
-        int id = item.getItemId();
-
-        //noinspection SimplifiableIfStatement
-        if (id == R.id.action_settings) {
-            return true;
+            cursor.close();
         }
 
-        return super.onOptionsItemSelected(item);
+        ListAdapter adapter = new ListAdapter(this, lsItem);
+        // Attach the adapter to the ListView.
+        latlong.setAdapter(adapter);
+        latlong.smoothScrollToPosition(lsItem.size() - 1);
+
     }
 
     @Override
-    public void onLocationChanged(Location location) {
+    protected void onResume() {
+        super.onResume();
+        registerReceiver(receiver, new IntentFilter(SpotRecognistionService.NOTIFICATION));
+    }
 
-        if (location != null) {
-            TextView textView = (TextView) findViewById(R.id.tv_lat_long);
-            String s = location.getLatitude() + " " + String.valueOf(location.getLongitude());
-            textView.setText(s);
-            Toast.makeText(MainActivity.this, s, Toast.LENGTH_SHORT).show();
+    @Override
+    protected void onPause() {
+        super.onPause();
+        unregisterReceiver(receiver);
+    }
+
+    public class ActivityDetectionRecevier extends BroadcastReceiver {
+        private final String TAG = ActivityDetectionRecevier.class.getName();
+
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            setupList();
+            //Log.i(TAG, "onReceive");
+            //Toast.makeText(MainActivity.this, "ActivityDetectionRecevier", Toast.LENGTH_SHORT).show();
         }
-
-//        if (mLastLocation != null) {
-//            TextView textView = (TextView)findViewById(R.id.tv_lat_long);
-//            String s = mLastLocation.getLatitude()+" "+String.valueOf(mLastLocation.getLongitude());
-//            textView.setText(s);
-//            Toast.makeText(MainActivity.this, s, Toast.LENGTH_SHORT).show();
-//        }
     }
 }
