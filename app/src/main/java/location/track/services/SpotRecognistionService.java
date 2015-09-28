@@ -113,7 +113,7 @@ public class SpotRecognistionService extends Service {
         public void onConnected(Bundle bundle) {
             mLocationRequest = LocationRequest.create();
             mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
-            mLocationRequest.setInterval(5000);
+            mLocationRequest.setInterval(10000);
 
             LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient, mLocationRequest, this);
         }

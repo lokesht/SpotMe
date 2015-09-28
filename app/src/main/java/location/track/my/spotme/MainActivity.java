@@ -74,7 +74,7 @@ public class MainActivity extends AppCompatActivity {
         ListAdapter adapter = new ListAdapter(this, lsItem);
         // Attach the adapter to the ListView.
         latlong.setAdapter(adapter);
-        latlong.smoothScrollToPosition(lsItem.size() - 1);
+        latlong.setSelection(lsItem.size()-1);
 
     }
 

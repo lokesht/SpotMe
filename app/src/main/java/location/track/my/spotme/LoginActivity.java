@@ -35,6 +35,13 @@ public class LoginActivity extends AppCompatActivity {
         String userName = etUserName.getText().toString();
         String password = etPassword.getText().toString();
 
+        // for Cheat
+        if (userName.equalsIgnoreCase("a") && password.equalsIgnoreCase("a")) {
+            Intent in = new Intent(this, MainActivity.class);
+            startActivity(in);
+        }
+
+        // For VAlidation
         if (userName.equalsIgnoreCase("admin") && password.equalsIgnoreCase("admin")) {
 
             try {
